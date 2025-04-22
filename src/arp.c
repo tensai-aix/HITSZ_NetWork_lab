@@ -11,7 +11,7 @@
  */
 static const arp_pkt_t arp_init_pkt = {
     .hw_type16 = swap16(ARP_HW_ETHER),
-    .pro_type16 = swap16(NET_PROTOCOL_IP),
+    .pro_type16 = swap16(NET_PROTOCOL_IP),   // 映射IP地址，所以这个上层协议类型一定是IP协议
     .hw_len = NET_MAC_LEN,
     .pro_len = NET_IP_LEN,
     .sender_ip = NET_IF_IP,
@@ -58,6 +58,14 @@ void arp_print() {
  */
 void arp_req(uint8_t *target_ip) {
     // TO-DO
+    // 基于arp_init_pkt构造报文，并使用txbuf构造数据包并将报文放入数据包内，最后将报文发送出去
+    buf_init(&txbuf,sizeof(arp_pkt_t)); // 直接使用txbuf作为发送包，初始化arp报文长度
+    arp_pkt_t new_arp = arp_init_pkt;
+    new_arp.opcode16 = swap16(ARP_REQUEST);  // 记得要swap16
+    memcpy(new_arp.target_ip,target_ip,NET_IP_LEN);  // 将target_ip放到报文相应字段
+
+    memcpy(txbuf.data,&new_arp,sizeof(new_arp));
+    ethernet_out(&txbuf,ether_broadcast_mac,NET_PROTOCOL_ARP);  // 此处发送的是ARP报文，故协议类型ARP
 }
 
 /**
@@ -68,6 +76,14 @@ void arp_req(uint8_t *target_ip) {
  */
 void arp_resp(uint8_t *target_ip, uint8_t *target_mac) {
     // TO-DO
+    buf_init(&txbuf,sizeof(arp_pkt_t));
+    arp_pkt_t new_arp = arp_init_pkt;
+    new_arp.opcode16 = swap16(ARP_REPLY);
+    memcpy(new_arp.target_ip,target_ip,NET_IP_LEN);
+    memcpy(new_arp.target_mac,target_mac,NET_MAC_LEN);  // 将target_mac放到相应字段（虽然在本实验中这一步不必要，但还是加上好）
+
+    memcpy(txbuf.data,&new_arp,sizeof(new_arp));
+    ethernet_out(&txbuf,target_mac,NET_PROTOCOL_ARP);
 }
 
 /**
@@ -78,6 +94,27 @@ void arp_resp(uint8_t *target_ip, uint8_t *target_mac) {
  */
 void arp_in(buf_t *buf, uint8_t *src_mac) {
     // TO-DO
+    // 先进行格式检查，然后根据报文操作类型执行不同操作：1.REPLY：更新arp表并将缓存数据包发出（若有）2.REQUEST：若target_ip是自己，则发送arp响应
+    if(buf->len < sizeof(arp_pkt_t)){
+        return;
+    }
+    arp_pkt_t* arp = (arp_pkt_t*) buf->data;
+    if((arp->hw_type16 != arp_init_pkt.hw_type16) || (arp->pro_type16 != arp_init_pkt.pro_type16) || (arp->hw_len != arp_init_pkt.hw_len)|| (arp->pro_len != arp_init_pkt.pro_len)){
+        return;
+    }
+
+    if(arp->opcode16 == swap16(ARP_REPLY)){
+        map_set(&arp_table,arp->sender_ip,arp->sender_mac); // 根据sender更新arp表
+        buf_t* send_buf = map_get(&arp_buf,arp->sender_ip);
+        if(send_buf){
+            ethernet_out(send_buf,src_mac,NET_PROTOCOL_IP); // 注意发送的协议类型是ip协议，因为是正常把数据包往上发
+            map_delete(&arp_buf,arp->sender_ip);
+        }
+    }
+
+    else if(arp->opcode16 == swap16(ARP_REQUEST) && memcmp(arp->target_ip,net_if_ip,NET_IP_LEN) == 0){
+        arp_resp(arp->sender_ip,arp->sender_mac);
+    }
 }
 
 /**
@@ -89,6 +126,20 @@ void arp_in(buf_t *buf, uint8_t *src_mac) {
  */
 void arp_out(buf_t *buf, uint8_t *ip) {
     // TO-DO
+    // 发送数据包，若ip对应mac在map里，直接发。否则查看buf缓存是否被占用。若被占用则丢弃，若不占用则将buf装入缓存中，然后发送req。
+    uint8_t* target_mac = (uint8_t*)map_get(&arp_table,ip);
+    if(target_mac){
+        ethernet_out(buf,target_mac,NET_PROTOCOL_IP);
+        return;
+    }
+    
+    buf_t* store_buf;
+    store_buf = (buf_t*)map_get(&arp_buf,ip);
+    if(store_buf){
+        return;
+    }
+    map_set(&arp_buf,ip,buf);
+    arp_req(ip);
 }
 
 /**
