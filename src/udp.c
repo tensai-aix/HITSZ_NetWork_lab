@@ -29,6 +29,14 @@ void udp_in(buf_t *buf, uint8_t *src_ip) {
  */
 void udp_out(buf_t *buf, uint16_t src_port, uint8_t *dst_ip, uint16_t dst_port) {
     // TO-DO
+    buf_add_header(buf,sizeof(udp_hdr_t));
+    udp_hdr_t* udp_head = (udp_hdr_t*) buf->data;
+    udp_head->src_port16 = src_port;
+    udp_head->dst_port16 = dst_port;
+    udp_head->total_len16 = buf->len;
+    udp_head->checksum16 = 0;
+    udp_head->checksum16 = transport_checksum(NET_PROTOCOL_UDP,buf,net_if_ip,dst_ip);
+    ip_out(buf,dst_ip,NET_PROTOCOL_UDP);
 }
 
 /**

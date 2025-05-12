@@ -11,7 +11,7 @@
  */
 void ethernet_in(buf_t *buf) {
     // TO-DO
-    // 先进行长度检查，然后把eth包头中的src mac地址与协议类型提取出来，并去除掉eth包头，最后通过net_in传给下层
+    // 先进行长度检查，然后把eth包头中的src mac地址与协议类型提取出来，并去除掉eth包头，最后通过net_in传给上层
     if(buf->len < sizeof(ether_hdr_t)) {
         return;
     }
@@ -31,7 +31,7 @@ void ethernet_in(buf_t *buf) {
  */
 void ethernet_out(buf_t *buf, const uint8_t *mac, net_protocol_t protocol) {
     // TO-DO
-    // 先进行长度检查，然后构造出eth包头并填充数据，最后发送给上层
+    // 先进行长度检查，然后构造出eth包头并填充数据，最后发送给下层
     if(buf->len < ETHERNET_MIN_TRANSPORT_UNIT){
         buf_add_padding(buf,ETHERNET_MIN_TRANSPORT_UNIT - buf->len);
     }

@@ -36,7 +36,7 @@ void ip_in(buf_t *buf, uint8_t *src_mac) {
         buf_remove_padding(buf,buf->len - in_ip->total_len16);
     }
     buf_remove_header(buf,sizeof(ip_hdr_t));
-    if(net_in(buf,in_ip->protocol,src_mac) != 0){
+    if(net_in(buf,in_ip->protocol,in_ip->src_ip) != 0){  // 这里net_in的src要填源ip地址！因为会传到icmp_in里，作为目的ip地址（请问这个src_mac究竟有什么用？）
         buf_add_header(buf,sizeof(ip_hdr_t));
         memcpy(buf->data,in_ip,sizeof(ip_hdr_t));
         icmp_unreachable(buf,in_ip->src_ip,ICMP_CODE_PROTOCOL_UNREACH);

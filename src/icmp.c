@@ -11,6 +11,13 @@
  */
 static void icmp_resp(buf_t *req_buf, uint8_t *src_ip) {
     // TO-DO
+    buf_init(&txbuf,req_buf->len);
+    memcpy(txbuf.data,req_buf->data,req_buf->len);
+    icmp_hdr_t* icmp_head = (icmp_hdr_t*)txbuf.data;
+    icmp_head->type = ICMP_TYPE_ECHO_REPLY;
+    icmp_head->checksum16 = 0;
+    icmp_head->checksum16 = checksum16((uint16_t*)icmp_head,txbuf.len);
+    ip_out(&txbuf,src_ip,NET_PROTOCOL_ICMP); 
 }
 
 /**
@@ -21,6 +28,13 @@ static void icmp_resp(buf_t *req_buf, uint8_t *src_ip) {
  */
 void icmp_in(buf_t *buf, uint8_t *src_ip) {
     // TO-DO
+    if(buf->len < sizeof(icmp_hdr_t)){
+        return;
+    }
+    icmp_hdr_t* icmp_head = (icmp_hdr_t*)buf->data;
+    if(icmp_head->type == ICMP_TYPE_ECHO_REQUEST){
+        icmp_resp(buf,src_ip);
+    }
 }
 
 /**
@@ -32,6 +46,18 @@ void icmp_in(buf_t *buf, uint8_t *src_ip) {
  */
 void icmp_unreachable(buf_t *recv_buf, uint8_t *src_ip, icmp_code_t code) {
     // TO-DO
+    int include_ip_bytes = 8 + sizeof(ip_hdr_t);
+    buf_init(&txbuf,include_ip_bytes);
+    memcpy(txbuf.data,recv_buf->data,include_ip_bytes);
+    buf_add_header(&txbuf,sizeof(icmp_hdr_t));
+    icmp_hdr_t* icmp_head = (icmp_hdr_t*) txbuf.data;
+    icmp_head->type = ICMP_TYPE_UNREACH;
+    icmp_head->code = code;
+    icmp_head->id16 = 0;
+    icmp_head->seq16 = 0;
+    icmp_head->checksum16 = 0;
+    icmp_head->checksum16 = checksum16((uint16_t*)txbuf.data,txbuf.len);
+    ip_out(&txbuf,src_ip,NET_PROTOCOL_ICMP);
 }
 
 /**

@@ -103,8 +103,9 @@ void arp_in(buf_t *buf, uint8_t *src_mac) {
         return;
     }
 
+    map_set(&arp_table,arp->sender_ip,arp->sender_mac); // 根据sender更新arp表,无论是request还是reply都要更新！
+
     if(arp->opcode16 == swap16(ARP_REPLY)){
-        map_set(&arp_table,arp->sender_ip,arp->sender_mac); // 根据sender更新arp表
         buf_t* send_buf = map_get(&arp_buf,arp->sender_ip);
         if(send_buf){
             ethernet_out(send_buf,src_mac,NET_PROTOCOL_IP); // 注意发送的协议类型是ip协议，因为是正常把数据包往上发
