@@ -17,6 +17,30 @@ map_t udp_table;
  */
 void udp_in(buf_t *buf, uint8_t *src_ip) {
     // TO-DO
+    if(buf->len < sizeof(udp_hdr_t)){
+        return;
+    }
+    udp_hdr_t* udp_head = (udp_hdr_t*)buf->data;
+    if(swap16(udp_head->total_len16) > buf->len){
+        return;
+    }
+    uint16_t ori_checksum = udp_head->checksum16;
+    udp_head->checksum16 = 0;
+    if(ori_checksum != transport_checksum(NET_PROTOCOL_UDP,buf,src_ip,net_if_ip)){  // 目的ip是本机ip，因为对于发送方而言，其的目的ip就是本机ip
+        return;
+    }
+    udp_head->checksum16 = ori_checksum;
+    uint16_t dst_port = swap16(udp_head->dst_port16);  // 记得swap16！
+    udp_handler_t* handler = (udp_handler_t*)map_get(&udp_table,&dst_port); // 函数指针
+    if(handler){
+        buf_remove_header(buf,sizeof(udp_hdr_t));
+        uint16_t src_port = swap16(udp_head->src_port16);
+        (*handler)(buf->data,buf->len,src_ip,src_port);   // 注意这里传入的是data！
+    }
+    else{
+        buf_add_header(buf,sizeof(ip_hdr_t));
+        icmp_unreachable(buf,src_ip,ICMP_CODE_PORT_UNREACH);
+    }
 }
 
 /**
@@ -31,9 +55,9 @@ void udp_out(buf_t *buf, uint16_t src_port, uint8_t *dst_ip, uint16_t dst_port) 
     // TO-DO
     buf_add_header(buf,sizeof(udp_hdr_t));
     udp_hdr_t* udp_head = (udp_hdr_t*) buf->data;
-    udp_head->src_port16 = src_port;
-    udp_head->dst_port16 = dst_port;
-    udp_head->total_len16 = buf->len;
+    udp_head->src_port16 = swap16(src_port);
+    udp_head->dst_port16 = swap16(dst_port);
+    udp_head->total_len16 = swap16(buf->len);
     udp_head->checksum16 = 0;
     udp_head->checksum16 = transport_checksum(NET_PROTOCOL_UDP,buf,net_if_ip,dst_ip);
     ip_out(buf,dst_ip,NET_PROTOCOL_UDP);

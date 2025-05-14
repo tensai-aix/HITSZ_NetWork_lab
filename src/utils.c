@@ -107,4 +107,29 @@ typedef struct peso_hdr {
  */
 uint16_t transport_checksum(uint8_t protocol, buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip) {
     // TO-DO
+    #pragma pack(push, 1)  
+    typedef struct {
+        uint8_t src_ip[NET_IP_LEN];  
+        uint8_t dst_ip[NET_IP_LEN]; 
+        uint8_t zero;
+        uint8_t protocol;
+        uint16_t udp_len16;
+    } udpUR_hdr_t;
+    #pragma pack(pop)     
+    buf_add_header(buf,sizeof(udpUR_hdr_t));
+    uint8_t temp_ip_store[sizeof(udpUR_hdr_t)];
+    memcpy(temp_ip_store,buf->data,sizeof(udpUR_hdr_t));
+    udpUR_hdr_t* udpUR_head = (udpUR_hdr_t*) buf->data;
+    memcpy(udpUR_head->src_ip,src_ip,NET_IP_LEN);
+    memcpy(udpUR_head->dst_ip,dst_ip,NET_IP_LEN);
+    udpUR_head->zero = 0;
+    udpUR_head->protocol = protocol;
+    udpUR_head->udp_len16 = swap16(buf->len - sizeof(udpUR_hdr_t));
+    int add_zero = buf->len % 2 == 1;
+    buf_add_padding(buf,add_zero);
+    uint16_t checksum = checksum16((uint16_t*)buf->data,buf->len);
+    buf_remove_padding(buf,add_zero);
+    memcpy(buf->data,temp_ip_store,sizeof(udpUR_hdr_t));
+    buf_remove_header(buf,sizeof(udpUR_hdr_t));
+    return checksum;
 }
