@@ -33,9 +33,14 @@ void ip_in(buf_t *buf, uint8_t *src_mac) {
         return;
     }
     if(buf->len > swap16(in_ip->total_len16)){
-        buf_remove_padding(buf,buf->len - in_ip->total_len16);
+        buf_remove_padding(buf,buf->len - swap16(in_ip->total_len16));
     }
     buf_remove_header(buf,sizeof(ip_hdr_t));
+    if(in_ip->protocol == NET_PROTOCOL_ICMP){
+        #ifdef PING    // 仅在PING测试模式下修改TTL，避免其他模块（如ip_test）因缺少icmp相关函数而报错
+        set_ping_req_TTL(in_ip->ttl,buf);
+        #endif
+    }
     if(net_in(buf,in_ip->protocol,in_ip->src_ip) != 0){  // 这里net_in的src要填源ip地址！因为会传到icmp_in里，作为目的ip地址（请问这个src_mac究竟有什么用？）
         buf_add_header(buf,sizeof(ip_hdr_t));
         memcpy(buf->data,in_ip,sizeof(ip_hdr_t));
@@ -63,7 +68,7 @@ void ip_fragment_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol, int id, u
     to_add_ip.id16 = swap16(id);
     offset /= IP_HDR_OFFSET_PER_BYTE;
     to_add_ip.flags_fragment16 = swap16((mf ? IP_MORE_FRAGMENT : 0) | offset);
-    to_add_ip.ttl = 64; 
+    to_add_ip.ttl = IP_DEFALUT_TTL; 
     to_add_ip.protocol = protocol;
     to_add_ip.hdr_checksum16 = 0;
     memcpy(to_add_ip.src_ip,net_if_ip,NET_IP_LEN);

@@ -3,11 +3,14 @@
 #include "ip.h"
 #include "net.h"
 
+map_t map_ping_req;
+map_t map_ping;
+
 /**
- * @brief å‘é€icmpå“åº”
+ * @brief ·¢ËÍicmpÏìÓ¦
  *
- * @param req_buf æ”¶åˆ°çš„icmpè¯·æ±‚åŒ…
- * @param src_ip æºipåœ°å€
+ * @param req_buf ÊÕµ½µÄicmpÇëÇó°ü
+ * @param src_ip Ô´ipµØÖ·
  */
 static void icmp_resp(buf_t *req_buf, uint8_t *src_ip) {
     // TO-DO
@@ -21,10 +24,10 @@ static void icmp_resp(buf_t *req_buf, uint8_t *src_ip) {
 }
 
 /**
- * @brief å¤„ç†ä¸€ä¸ªæ”¶åˆ°çš„æ•°æ®åŒ…
+ * @brief ´¦ÀíÒ»¸öÊÕµ½µÄÊý¾Ý°ü
  *
- * @param buf è¦å¤„ç†çš„æ•°æ®åŒ…
- * @param src_ip æºipåœ°å€
+ * @param buf Òª´¦ÀíµÄÊý¾Ý°ü
+ * @param src_ip Ô´ipµØÖ·
  */
 void icmp_in(buf_t *buf, uint8_t *src_ip) {
     // TO-DO
@@ -35,14 +38,21 @@ void icmp_in(buf_t *buf, uint8_t *src_ip) {
     if(icmp_head->type == ICMP_TYPE_ECHO_REQUEST){
         icmp_resp(buf,src_ip);
     }
+    else if(icmp_head->type == ICMP_TYPE_ECHO_REPLY){
+        icmp_hdr_t* icmp_hdr = (icmp_hdr_t*) buf->data;
+        int id = swap16(icmp_hdr->seq16);
+        ping_req_t* ping_receive = (ping_req_t*)map_get(&map_ping_req,&id);
+        mingw_gettimeofday(&ping_receive->receive_time, NULL);
+        ping_receive->length = buf->len - sizeof(icmp_hdr_t);
+    }
 }
 
 /**
- * @brief å‘é€icmpä¸å¯è¾¾
+ * @brief ·¢ËÍicmp²»¿É´ï
  *
- * @param recv_buf æ”¶åˆ°çš„ipæ•°æ®åŒ…
- * @param src_ip æºipåœ°å€
- * @param code icmp codeï¼Œåè®®ä¸å¯è¾¾æˆ–ç«¯å£ä¸å¯è¾¾
+ * @param recv_buf ÊÕµ½µÄipÊý¾Ý°ü
+ * @param src_ip Ô´ipµØÖ·
+ * @param code icmp code£¬Ð­Òé²»¿É´ï»ò¶Ë¿Ú²»¿É´ï
  */
 void icmp_unreachable(buf_t *recv_buf, uint8_t *src_ip, icmp_code_t code) {
     // TO-DO
@@ -61,9 +71,157 @@ void icmp_unreachable(buf_t *recv_buf, uint8_t *src_ip, icmp_code_t code) {
 }
 
 /**
- * @brief åˆå§‹åŒ–icmpåè®®
+ * @brief ³õÊ¼»¯icmpÐ­Òé
  *
  */
 void icmp_init() {
+    map_init(&map_ping_req,sizeof(uint16_t),sizeof(ping_req_t),0,0,NULL,NULL);
+    map_init(&map_ping,NET_IP_LEN,sizeof(ping_t),0,0,NULL,NULL);
     net_add_protocol(NET_PROTOCOL_ICMP, icmp_in);
+}
+
+/**
+ * @brief ·¢ËÍÒ»´Îping_req
+ * 
+ * @param dst_ip Ä¿µÄip
+ * @param id icmpÇëÇóµÄID
+ */
+void icmp_req_out(uint8_t* dst_ip,uint16_t id){
+    // Ìî³äÊý¾Ý²¿·ÖÎª32×Ö½ÚµÄ0 
+    buf_t* send_ping_req = &txbuf;
+    buf_init(send_ping_req,PING_DATA_SIZE);
+    memset(send_ping_req->data,0,PING_DATA_SIZE);
+
+    // ÌîÐ´icmpÇëÇó±¨Í·£¬ÆäÖÐÐòÁÐºÅºÍ±êÊ¶·û¶¼ÉèÎªid
+    buf_add_header(send_ping_req,sizeof(icmp_hdr_t));
+    icmp_hdr_t* hdr = (icmp_hdr_t*) send_ping_req->data;
+    hdr->type = ICMP_TYPE_ECHO_REQUEST;
+    hdr->code = 0;
+    hdr->id16 = swap16(id);
+    hdr->seq16 = swap16(id);
+    hdr->checksum16 = 0;
+    hdr->checksum16 = checksum16((uint16_t*)send_ping_req->data,send_ping_req->len);
+
+    // ¼ÇÂ¼ping_reqµÄ·¢ËÍÊ±¼ä²¢´æÈëping_reqµÄmapÖÐ
+    ping_req_t ping_req;
+    memcpy(ping_req.dst_ip,dst_ip,NET_IP_LEN);
+    mingw_gettimeofday(&ping_req.send_time, NULL);
+    memset(&ping_req.receive_time,0,sizeof(struct timeval));
+    map_set(&map_ping_req,&id,&ping_req);
+
+    ip_out(send_ping_req,dst_ip,NET_PROTOCOL_ICMP);
+}
+
+/**
+ * @brief pingÇëÇó
+ * 
+ * @param dst_ip pingµÄipµØÖ·
+ * @return int ÊÇ·ñÍê³ÉÁËpingÇëÇó
+ */
+int ping_req(uint8_t* dst_ip){
+    ping_t* ping = (ping_t*)map_get(&map_ping,dst_ip);
+    // ³õÊ¼»¯Ò»¸öping
+    if(!ping){
+        ping_t new_ping;
+        new_ping.is_finished = 0;
+        new_ping.last_send = time(NULL);
+        new_ping.ping_time = 0;
+        new_ping.shortest_time = 1000;
+        new_ping.longest_time = 0;
+        new_ping.success_time = 0;
+        new_ping.sum_time = 0;
+        map_set(&map_ping,dst_ip,&new_ping);
+        ping = &new_ping;
+        printf("ping %s\n\n",ip_to_string(dst_ip));
+        printf("ÕýÔÚ Ping %s ¾ßÓÐ %d ×Ö½ÚµÄÊý¾Ý:\n",ip_to_string(dst_ip),PING_DATA_SIZE);
+    }
+
+    if(ping->is_finished){
+        return 1;
+    }
+
+    time_t now = time(NULL);
+    int finish = 0;
+    // ¼ì²éÉÏÒ»´ÎµÄping_req,²¢·¢ËÍping_req
+    if(now - ping->last_send >= 1){
+        if(ping->ping_time >= 1){
+            ping_req_check(ping);
+        }
+        if(ping->ping_time == PING_TEST_TIME){
+            finish = 1;
+        }
+        else{
+            ping->ping_time++;
+            icmp_req_out(dst_ip,ping->ping_time);
+            ping->last_send = now;
+        }
+    }
+
+    if(finish){
+        ping->is_finished = 1;
+        printf("\n%s µÄ Ping Í³¼ÆÐÅÏ¢:\n",ip_to_string(dst_ip));
+        printf("    Êý¾Ý°ü: ÒÑ·¢ËÍ = %d£¬ÒÑ½ÓÊÕ = %d£¬¶ªÊ§ = %d (%d%% ¶ªÊ§)\n",PING_TEST_TIME,ping->success_time,PING_TEST_TIME- ping->success_time,100 - (100 * ping->success_time / PING_TEST_TIME));
+        if(ping->success_time){
+            printf("Íù·µÐÐ³ÌµÄ¹À¼ÆÊ±¼ä(ÒÔºÁÃëÎªµ¥Î»):\n");
+            printf("    ×î¶Ì = %dms£¬×î³¤ = %dms£¬Æ½¾ù = %dms\n",ping->shortest_time,ping->longest_time,ping->sum_time / ping->success_time);
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief ¼ì²éping_reqÊÇ·ñÓÐÐ§
+ * 
+ * @param ping
+ */
+void ping_req_check(ping_t* ping){
+    ping_req_t* ping_req_entry = (ping_req_t*)map_get(&map_ping_req,&ping->ping_time);
+    if(ping_req_entry->receive_time.tv_sec == 0 && ping_req_entry->receive_time.tv_usec == 0){
+        printf("ÇëÇó³¬Ê±¡£\n");
+    }
+    else{
+        int time_interval = (ping_req_entry->receive_time.tv_sec - ping_req_entry->send_time.tv_sec) * 1000 + (ping_req_entry->receive_time.tv_usec - ping_req_entry->send_time.tv_usec) / 1000;
+        if(time_interval < ping->shortest_time){
+            ping->shortest_time = time_interval;
+        }
+        if(time_interval > ping->longest_time){
+            ping->longest_time = time_interval;
+        } 
+        ping->sum_time += time_interval;
+        ping->success_time++;
+        printf("À´×Ô %s µÄ»Ø¸´: ×Ö½Ú=%d Ê±¼ä=%dms TTL=%d\n",ip_to_string(ping_req_entry->dst_ip),ping_req_entry->length,time_interval,ping_req_entry->TTL);
+    }
+}
+
+/**
+ * @brief ½«ip×ª»¯Îª×Ö·û´®
+ * 
+ * @param ip
+ * @return char* ×Ö·û´®
+ */
+char* ip_to_string(uint8_t *ip) {
+    static char result[32];
+    if (ip == 0) {
+        return "(null)";
+    } else {
+        sprintf(result, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+        return result;
+    }
+}
+
+/**
+ * @brief ÉèÖÃping_reqµÄTTL£¬ÓÉip²ãµ÷ÓÃ´Ëº¯Êý
+ * 
+ * @param TTL
+ * @param buf ÓÃÓÚÌáÈ¡id
+ */
+void set_ping_req_TTL(uint8_t TTL,buf_t* buf){
+    icmp_hdr_t* icmp_hdr = (icmp_hdr_t*) buf->data;
+    if(icmp_hdr->type != ICMP_TYPE_ECHO_REPLY){
+        return;
+    }
+    int id = swap16(icmp_hdr->seq16);
+    ping_req_t* ping_receive = (ping_req_t*)map_get(&map_ping_req,&id);
+    ping_receive->TTL = TTL;
 }

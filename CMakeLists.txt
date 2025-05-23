@@ -20,6 +20,13 @@ include_directories(./include ./Npcap/Include)
 link_directories(./Npcap/Lib ./Npcap/Lib/x64)
 aux_source_directory(./src DIR_SRCS)
 
+add_executable(icmp_server
+    ${DIR_SRCS}
+    ./app/icmp_server.c
+)
+target_link_libraries(icmp_server ${PCAP})
+target_compile_definitions(icmp_server PRIVATE ICMP PING)
+
 add_executable(udp_server
     ${DIR_SRCS}
     ./app/udp_server.c

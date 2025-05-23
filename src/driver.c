@@ -120,20 +120,16 @@ int driver_open() {
     char filter_exp[PCAP_BUF_SIZE];
     struct bpf_program fp;
     uint8_t mac_addr[6] = NET_IF_MAC;
-    sprintf(filter_exp,  // 过滤数据包
+    #ifdef PING   // PING测试不过滤实验机发出的网络包
+        sprintf(filter_exp,
+            "(ether dst %02x:%02x:%02x:%02x:%02x:%02x or ether broadcast)",
+            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+    #else
+        sprintf(filter_exp,
             "(ether dst %02x:%02x:%02x:%02x:%02x:%02x or ether broadcast) and (not ether src %02x:%02x:%02x:%02x:%02x:%02x)",
-            mac_addr[0],
-            mac_addr[1],
-            mac_addr[2],
-            mac_addr[3],
-            mac_addr[4],
-            mac_addr[5],
-            mac_addr[0],
-            mac_addr[1],
-            mac_addr[2],
-            mac_addr[3],
-            mac_addr[4],
-            mac_addr[5]);
+            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5],
+            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+    #endif
     if (pcap_compile(pcap, &fp, filter_exp, 0, mask) < 0) {
         fprintf(stderr, "Error in pcap_compile.\n%s.\n", pcap_geterr(pcap));
         return -1;
