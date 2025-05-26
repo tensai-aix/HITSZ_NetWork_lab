@@ -41,12 +41,19 @@ void ip_in(buf_t *buf, uint8_t *src_mac) {
         set_ping_req_TTL(in_ip->ttl,buf);
         #endif
     }
+    #ifndef IP_SER
     if(net_in(buf,in_ip->protocol,in_ip->src_ip) != 0){  // 这里net_in的src要填源ip地址！因为会传到icmp_in里，作为目的ip地址（请问这个src_mac究竟有什么用？）
         buf_add_header(buf,sizeof(ip_hdr_t));
         memcpy(buf->data,in_ip,sizeof(ip_hdr_t));
         icmp_unreachable(buf,in_ip->src_ip,ICMP_CODE_PROTOCOL_UNREACH);
     }
+    #endif
 }
+
+// void ip_fragment_in(){
+
+// }
+
 /**
  * @brief 处理一个要发送的ip分片
  *
@@ -96,14 +103,16 @@ void ip_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol) {
         ip_fragment_out(buf,ip,protocol,ip_id,offset,0);  
         return;
     }
-    buf_t* ip_buf = &txbuf;
+    buf_t* ip_buf;
     while(buf_len > max_dataSize){
+        ip_buf = (buf_t*) malloc (sizeof(buf_t));
         buf_init(ip_buf,max_dataSize);  // 重要！因为在ip_fragment_out中添加了头部，所以这个ip_buf的长度和data指针是被修改了的！要重新初始化
         memcpy(ip_buf->data,buf->data + offset,max_dataSize);
         ip_fragment_out(ip_buf,ip,protocol,ip_id,offset,1);
         offset += max_dataSize;
         buf_len -= max_dataSize;
     }
+    ip_buf = (buf_t*) malloc (sizeof(buf_t));
     buf_init(ip_buf,buf_len);  
     memcpy(ip_buf->data,buf->data + offset,buf_len);
     ip_fragment_out(ip_buf,ip,protocol,ip_id,offset,0);

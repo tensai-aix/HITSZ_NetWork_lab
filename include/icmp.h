@@ -27,8 +27,8 @@ typedef enum icmp_code {
 } icmp_code_t;
 
 typedef struct ping_req{             // 一次icmp请求报文的数据结构
-    struct timeval send_time;        // 发送时间
-    struct timeval receive_time;     // 接收时间
+    dtime_t send_time;        // 发送时间
+    dtime_t receive_time;     // 接收时间
     uint8_t dst_ip[NET_IP_LEN];      // 目的ip
     int length;                      // 数据长度
     uint8_t TTL;                     // TTL

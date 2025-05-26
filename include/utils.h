@@ -12,6 +12,8 @@ uint16_t transport_checksum(uint8_t protocol, buf_t *buf, uint8_t *src_ip, uint8
 #define swap16(x) ((((x)&0xFF) << 8) | (((x) >> 8) & 0xFF))                                                  // 为16位数据交换大小端
 #define swap32(x) ((((x)&0xFF) << 24) | (((x)&0xFF00) << 8) | (((x)&0xFF0000) >> 8) | (((x) >> 24) & 0xFF))  // 为32位数据交换大小端
 
+typedef struct timeval dtime_t;
+
 char *iptos(uint8_t *ip);
 char *mactos(uint8_t *mac);
 char *timetos(time_t timestamp);

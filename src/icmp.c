@@ -106,7 +106,7 @@ void icmp_req_out(uint8_t* dst_ip,uint16_t id){
     ping_req_t ping_req;
     memcpy(ping_req.dst_ip,dst_ip,NET_IP_LEN);
     mingw_gettimeofday(&ping_req.send_time, NULL);
-    memset(&ping_req.receive_time,0,sizeof(struct timeval));
+    memset(&ping_req.receive_time,0,sizeof(dtime_t));
     map_set(&map_ping_req,&id,&ping_req);
 
     ip_out(send_ping_req,dst_ip,NET_PROTOCOL_ICMP);

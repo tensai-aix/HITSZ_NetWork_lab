@@ -27,6 +27,13 @@ add_executable(icmp_server
 target_link_libraries(icmp_server ${PCAP})
 target_compile_definitions(icmp_server PRIVATE ICMP PING)
 
+add_executable(ip_server
+    ${DIR_SRCS}
+    ./app/ip_server.c
+)
+target_link_libraries(ip_server ${PCAP})
+target_compile_definitions(ip_server PRIVATE ICMP IP_SER)
+
 add_executable(udp_server
     ${DIR_SRCS}
     ./app/udp_server.c

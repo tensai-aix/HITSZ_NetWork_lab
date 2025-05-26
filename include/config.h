@@ -27,6 +27,7 @@
 #define ARP_MIN_INTERVAL 1        // 向相同地址发送arp请求的最小间隔
 #define PING_MAX_WAIT 1           // 等待超过1s就认为不可达
 #define PING_TEST_TIME 4          // 一次ping请求发送四个icmp请求报文
+#define MAX_STORE_BUF 16          // 对于任意数据结构，最多缓存16个数据包
 
 #define IP_DEFALUT_TTL 64  // IP默认TTL
 

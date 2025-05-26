@@ -29,6 +29,7 @@ map_t arp_table;
  *
  */
 map_t arp_buf;
+map_t extend_arp_buf;   // 不能直接修改arp_buf，因为test逻辑检测里要用到！
 
 /**
  * @brief 打印一条arp表项
@@ -106,13 +107,23 @@ void arp_in(buf_t *buf, uint8_t *src_mac) {
     map_set(&arp_table,arp->sender_ip,arp->sender_mac); // 根据sender更新arp表,无论是request还是reply都要更新！
 
     if(arp->opcode16 == swap16(ARP_REPLY)){
-        buf_t* send_buf = map_get(&arp_buf,arp->sender_ip);
-        if(send_buf){
-            ethernet_out(send_buf,src_mac,NET_PROTOCOL_IP); // 注意发送的协议类型是ip协议，因为是正常把数据包往上发
-            map_delete(&arp_buf,arp->sender_ip);
-        }
+        #ifdef IP_SER
+            buf_list_t* store_buf_list = (buf_list_t*)map_get(&extend_arp_buf,arp->sender_ip);
+            if(store_buf_list){
+                for(int i = 0;i < store_buf_list->buf_count;i++){
+                    ethernet_out(store_buf_list->buf[i],src_mac,NET_PROTOCOL_IP); // 注意发送的上层协议类型是ip协议
+                }
+                map_delete(&extend_arp_buf,arp->sender_ip);
+            }
+        #else
+            buf_t* send_buf = map_get(&arp_buf,arp->sender_ip);
+            if(send_buf){
+                ethernet_out(send_buf,src_mac,NET_PROTOCOL_IP); // 注意发送的协议类型是ip协议，因为是正常把数据包往上发
+                map_delete(&arp_buf,arp->sender_ip);
+            }
+        #endif
     }
-
+    
     else if(arp->opcode16 == swap16(ARP_REQUEST) && memcmp(arp->target_ip,net_if_ip,NET_IP_LEN) == 0){
         arp_resp(arp->sender_ip,arp->sender_mac);
     }
@@ -134,13 +145,27 @@ void arp_out(buf_t *buf, uint8_t *ip) {
         return;
     }
     
-    buf_t* store_buf;
-    store_buf = (buf_t*)map_get(&arp_buf,ip);
-    if(store_buf){
-        return;
-    }
-    map_set(&arp_buf,ip,buf);
-    arp_req(ip);
+    #ifdef IP_SER
+        buf_list_t* store_buf_list = (buf_list_t*)map_get(&extend_arp_buf,ip);
+        if(!store_buf_list){
+            buf_list_t* new_buf_list = (buf_list_t*) malloc (sizeof(buf_list_t));
+            new_buf_list->buf_count = 0;
+            new_buf_list->buf[new_buf_list->buf_count++] = buf;
+            map_set(&extend_arp_buf,ip,new_buf_list);
+            arp_req(ip);
+        }
+        else{
+            store_buf_list->buf[store_buf_list->buf_count++] = buf;
+        }
+    #else
+        buf_t* store_buf;
+        store_buf = (buf_t*)map_get(&arp_buf,ip);
+        if(store_buf){
+            return;
+        }
+        map_set(&arp_buf,ip,buf);
+        arp_req(ip);
+    #endif
 }
 
 /**
@@ -149,7 +174,11 @@ void arp_out(buf_t *buf, uint8_t *ip) {
  */
 void arp_init() {
     map_init(&arp_table, NET_IP_LEN, NET_MAC_LEN, 0, ARP_TIMEOUT_SEC, NULL, NULL);
-    map_init(&arp_buf, NET_IP_LEN, sizeof(buf_t), 0, ARP_MIN_INTERVAL, NULL, buf_copy);
+    #ifdef IP_SER
+        map_init(&extend_arp_buf, NET_IP_LEN, sizeof(buf_list_t), 0, ARP_MIN_INTERVAL, NULL, NULL);
+    #else
+        map_init(&arp_buf, NET_IP_LEN, sizeof(buf_t), 0, ARP_MIN_INTERVAL, NULL, buf_copy);
+    #endif
     net_add_protocol(NET_PROTOCOL_ARP, arp_in);
     arp_req(net_if_ip);
 }

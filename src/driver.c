@@ -99,6 +99,10 @@ int driver_open() {
     }
 #endif
 
+#if defined(PING) || defined(IP_SER)
+#define SELF_SEND
+#endif
+
     char if_name[PCAP_BUF_SIZE];
     uint32_t mask;
     if (driver_find(net_if_ip, if_name, (uint8_t *)&mask) < 0) {
@@ -120,7 +124,7 @@ int driver_open() {
     char filter_exp[PCAP_BUF_SIZE];
     struct bpf_program fp;
     uint8_t mac_addr[6] = NET_IF_MAC;
-    #ifdef PING   // PING测试不过滤实验机发出的网络包
+    #ifdef SELF_SEND   // PING测试、分片重组测试不过滤实验机发出的网络包
         sprintf(filter_exp,
             "(ether dst %02x:%02x:%02x:%02x:%02x:%02x or ether broadcast)",
             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);

@@ -7,8 +7,8 @@
 typedef struct tcp_hdr {
     uint16_t src_port16;  // 源端口
     uint16_t dst_port16;  // 目标端口
-    uint32_t seq;         // sequence number
-    uint32_t ack;         // ack number
+    uint32_t seq;         // sequence number(当前字节序列号)
+    uint32_t ack;         // ack number（期待的下一字节的序列号）
     uint8_t doff;         // 低4bit表示保留位，高4bit表示首部长度（指向TCP报文数据起始位）
     uint8_t flags;
     uint16_t win;         // window size
@@ -40,7 +40,7 @@ typedef enum tcp_state {
 typedef struct tcp_connection {
     /* TCP connection states */
     tcp_state_t state;
-    uint8_t not_send_empty_ack;
+    uint8_t not_send_empty_ack;   // 不需要发送空的ACK报文
 
     /* TCP communication states */
     int port;

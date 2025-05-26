@@ -22,6 +22,11 @@ typedef struct arp_pkt {
 
 #pragma pack()
 
+typedef struct buf_list{
+    buf_t* buf[MAX_STORE_BUF];
+    int buf_count;
+} buf_list_t;
+
 void arp_init();
 void arp_print();
 void arp_in(buf_t *buf, uint8_t *src_mac);

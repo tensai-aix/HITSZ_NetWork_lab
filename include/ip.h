@@ -19,6 +19,14 @@ typedef struct ip_hdr {
 } ip_hdr_t;
 #pragma pack()
 
+typedef struct ipFragment_mess{
+    dtime_t receive_time;
+    uint8_t payload[BUF_MAX_LEN];
+    int total_amount;
+    int receive_amount;
+    int isfinished;
+} ipFragment_mess_t;
+
 #define IP_HDR_LEN_PER_BYTE 4       // ip包头长度单位
 #define IP_HDR_OFFSET_PER_BYTE 8    // ip分片偏移长度单位
 #define IP_VERSION_4 4              // ipv4
