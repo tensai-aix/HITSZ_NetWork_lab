@@ -61,52 +61,53 @@ void http_respond(tcp_conn_t *tcp_conn, char *url_path, uint16_t port, uint8_t *
                                "</BODY></HTML>\r\n";
         /* Step1 ：发送 HTTP 404 请求头 */
         // TODO: 发送 HTTP 状态行
-
-
+        sprintf(resp_buffer, "HTTP/1.1 404 NOT FOUND\r\n");
+        tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
         // 发送 HTTP 连接信息
         sprintf(resp_buffer, "Connection: Keep-Alive\r\n");
         tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
-
         // TODO: 发送 HTTP 内容类型
-
-
+        sprintf(resp_buffer, "Content-Type: text/html\r\n");
+        tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
         // TODO: 发送 HTTP 内容长度
-
-
+        sprintf(resp_buffer, "Content-Length: %lu\r\n", strlen(not_found_body));
+        tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
         // TODO: 发送 HTTP 响应头与响应体的分隔符
-
-
+        sprintf(resp_buffer, "\r\n");
+        tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
         // TODO: 发送 HTTP 响应体
-
-
+        tcp_send(tcp_conn, (uint8_t *)not_found_body, strlen(not_found_body), port, dst_ip, dst_port);
         return;
     }
 
     /* Step2 ：发送 HTTP 请求头 */
     // TODO: 发送 HTTP 状态行
-
+    sprintf(resp_buffer, "HTTP/1.1 20 OK\r\n");
+        tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
     // 发送 HTTP 连接信息
     sprintf(resp_buffer, "Connection: Keep-Alive\r\n");
     tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
 
     const char *content_type = http_get_mime_type(file_path);
     // TODO: 发送 HTTP 内容类型，根据文件类型设置 MIME 类型
-
+    sprintf(resp_buffer, "Content-Type: %s\r\n", content_type);
+    tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
 
     fseek(file, 0, SEEK_END);
     size_t content_length = ftell(file);
     fseek(file, 0, SEEK_SET);
     // TODO: 发送 HTTP 内容长度
-
-
+    sprintf(resp_buffer, "Content-Length: %lu\r\n", content_length);
+    tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
     // TODO: 发送 HTTP 响应头与响应体的分隔符
-
+    sprintf(resp_buffer, "\r\n");
+    tcp_send(tcp_conn, (uint8_t *)resp_buffer, strlen(resp_buffer), port, dst_ip, dst_port);
 
     /* Step3 ：发送 HTTP 响应体 */
     size_t bytes_read;
     while ((bytes_read = fread(resp_buffer, 1, sizeof(resp_buffer), file)) > 0) {
         // TODO: 每次发送读取的文件内容块
-
+        tcp_send(tcp_conn, (uint8_t *)resp_buffer, bytes_read, port, dst_ip, dst_port);
     }
 
     // 后处理: 关闭文件
