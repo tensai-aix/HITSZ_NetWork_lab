@@ -18,4 +18,5 @@ char *iptos(uint8_t *ip);
 char *mactos(uint8_t *mac);
 char *timetos(time_t timestamp);
 uint8_t ip_prefix_match(uint8_t *ipa, uint8_t *ipb);
+int calcul_diff_time(dtime_t before, dtime_t end);
 #endif

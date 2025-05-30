@@ -133,3 +133,8 @@ uint16_t transport_checksum(uint8_t protocol, buf_t *buf, uint8_t *src_ip, uint8
     buf_remove_header(buf,sizeof(udpUR_hdr_t));
     return checksum;
 }
+
+// 计算时间差
+int calcul_diff_time(dtime_t before, dtime_t end) {
+    return (end.tv_sec - before.tv_sec) * 1000 + (end.tv_usec - before.tv_usec) / 1000;
+}

@@ -107,7 +107,7 @@ void arp_in(buf_t *buf, uint8_t *src_mac) {
     map_set(&arp_table,arp->sender_ip,arp->sender_mac); // 根据sender更新arp表,无论是request还是reply都要更新！
 
     if(arp->opcode16 == swap16(ARP_REPLY)){
-        #ifdef IP_SER
+        #ifdef EXTEND_ARP_TABLE
             buf_list_t* store_buf_list = (buf_list_t*)map_get(&extend_arp_buf,arp->sender_ip);
             if(store_buf_list){
                 for(int i = 0;i < store_buf_list->buf_count;i++){
@@ -145,7 +145,7 @@ void arp_out(buf_t *buf, uint8_t *ip) {
         return;
     }
     
-    #ifdef IP_SER
+    #ifdef EXTEND_ARP_TABLE
         buf_list_t* store_buf_list = (buf_list_t*)map_get(&extend_arp_buf,ip);
         if(!store_buf_list){
             buf_list_t* new_buf_list = (buf_list_t*) malloc (sizeof(buf_list_t));
@@ -174,7 +174,7 @@ void arp_out(buf_t *buf, uint8_t *ip) {
  */
 void arp_init() {
     map_init(&arp_table, NET_IP_LEN, NET_MAC_LEN, 0, ARP_TIMEOUT_SEC, NULL, NULL);
-    #ifdef IP_SER
+    #ifdef EXTEND_ARP_TABLE
         map_init(&extend_arp_buf, NET_IP_LEN, sizeof(buf_list_t), 0, ARP_MIN_INTERVAL, NULL, NULL);
     #else
         map_init(&arp_buf, NET_IP_LEN, sizeof(buf_t), 0, ARP_MIN_INTERVAL, NULL, buf_copy);

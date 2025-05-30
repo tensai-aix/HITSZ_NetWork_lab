@@ -181,7 +181,7 @@ void ping_req_check(ping_t* ping){
         printf("ÇëÇó³¬Ê±¡£\n");
     }
     else{
-        int time_interval = (ping_req_entry->receive_time.tv_sec - ping_req_entry->send_time.tv_sec) * 1000 + (ping_req_entry->receive_time.tv_usec - ping_req_entry->send_time.tv_usec) / 1000;
+        int time_interval = calcul_diff_time(ping_req_entry->send_time,ping_req_entry->receive_time);
         if(time_interval < ping->shortest_time){
             ping->shortest_time = time_interval;
         }

@@ -6,6 +6,7 @@
 #include "net.h"
 
 static uint16_t ip_id = -1;  // 使用全局变量ip_id
+map_t map_store_fragment;
 
 /**
  * @brief 处理一个收到的数据包
@@ -38,21 +39,101 @@ void ip_in(buf_t *buf, uint8_t *src_mac) {
     buf_remove_header(buf,sizeof(ip_hdr_t));
     if(in_ip->protocol == NET_PROTOCOL_ICMP){
         #ifdef PING    // 仅在PING测试模式下修改TTL，避免其他模块（如ip_test）因缺少icmp相关函数而报错
-        set_ping_req_TTL(in_ip->ttl,buf);
+            set_ping_req_TTL(in_ip->ttl,buf);
         #endif
     }
-    #ifndef IP_SER
-    if(net_in(buf,in_ip->protocol,in_ip->src_ip) != 0){  // 这里net_in的src要填源ip地址！因为会传到icmp_in里，作为目的ip地址（请问这个src_mac究竟有什么用？）
-        buf_add_header(buf,sizeof(ip_hdr_t));
-        memcpy(buf->data,in_ip,sizeof(ip_hdr_t));
-        icmp_unreachable(buf,in_ip->src_ip,ICMP_CODE_PROTOCOL_UNREACH);
-    }
-    #endif
+    ip_fragment_in(in_ip->protocol,swap16(in_ip->flags_fragment16),buf,in_ip->src_ip,swap16(in_ip->id16));
 }
 
-// void ip_fragment_in(){
+/**
+ * @brief 若无分片直接向上传。若有分片等分片到齐再传
+ * 
+ * @param protocol 协议号
+ * @param flags_fragment16 分片标志
+ * @param buf 向上传的数据包（已去除ip头部）
+ * @param src_ip 源ip地址
+ * @param id ip报文的id
+ */
+void ip_fragment_in(uint8_t protocol,uint16_t flags_fragment16,buf_t* buf,uint8_t* src_ip,uint16_t id){
+    if(flags_fragment16 == 0){
+        ip_fragment_send_in(protocol,src_ip,buf,id);
+        return;
+    }
 
-// }
+    int MF = flags_fragment16 & IP_MORE_FRAGMENT;
+    int offset = (flags_fragment16 & 0x1FFF) * IP_HDR_OFFSET_PER_BYTE;
+    int length = buf->len;
+
+    ipFragment_mess_t* fragment_mess = (ipFragment_mess_t*)map_get(&map_store_fragment,&id);
+    if(!fragment_mess){
+        fragment_mess = (ipFragment_mess_t*) malloc (sizeof(ipFragment_mess_t));
+        fragment_mess->receive_bytes = 0;
+        fragment_mess->total_bytes = -1;
+        memset(fragment_mess->map_offset,0,sizeof(fragment_mess->map_offset));
+        map_set(&map_store_fragment,&id,fragment_mess);
+        fragment_mess = (ipFragment_mess_t*)map_get(&map_store_fragment,&id);   // 注意要将fragment_mess改为map里的引用
+    }
+
+    if(fragment_mess->map_offset[offset / IP_HDR_OFFSET_PER_BYTE]){
+        printf("repeat ip package!id:%d\n",id);
+        return;
+    }
+
+    if(MF == 0){    // 总长度由最后一个分片计算得到
+        fragment_mess->total_bytes = offset + length;
+    }
+    mingw_gettimeofday(&fragment_mess->last_update,NULL);
+    memcpy(fragment_mess->payload + offset,buf->data,length);
+    fragment_mess->receive_bytes += length;
+    fragment_mess->map_offset[offset / IP_HDR_OFFSET_PER_BYTE] = 1;
+
+    if(fragment_mess->receive_bytes == fragment_mess->total_bytes){    // 集齐了就往上发并从缓存里删去
+        buf_t send_buf;
+        buf_init(&send_buf,fragment_mess->total_bytes);
+        memcpy(send_buf.data,fragment_mess->payload,fragment_mess->total_bytes);
+        ip_fragment_send_in(protocol,src_ip,&send_buf,id);
+        map_delete(&map_store_fragment,&id);
+    }
+}
+
+/**
+ * @brief 对每个缓存的ip分片进行超时检查
+ */
+void fragment_check(){
+    map_foreach(&map_store_fragment,fragment_check_entry);
+}
+
+/**
+ * @brief 超时检查。若超时直接从缓存里删去
+ */
+void fragment_check_entry(void *id, void *ipfragment_mess, time_t *timestamp){
+    ipFragment_mess_t* fragment_mess = (ipFragment_mess_t*) ipfragment_mess;
+    dtime_t now;
+    mingw_gettimeofday(&now,NULL);
+    if(calcul_diff_time(fragment_mess->last_update,now) > IP_FRAGMENT_TIMEOUT){
+        printf("clear id:%u timeout!\n",*((uint16_t*)id));
+        map_delete(&map_store_fragment,id);
+    }
+}
+
+/**
+ * @brief 将整合好的ip包向上传
+ * 
+ * @param protocol 上层协议
+ * @param src_ip 源ip
+ * @param buf 数据包
+ * @param id id，用于打印信息用
+ */
+void ip_fragment_send_in(uint8_t protocol,uint8_t* src_ip,buf_t* buf,uint16_t id){
+    #ifndef IP_SER
+        if(net_in(buf,protocol,src_ip) != 0){  
+            buf_add_header(buf,sizeof(ip_hdr_t));
+            icmp_unreachable(buf,src_ip,ICMP_CODE_PROTOCOL_UNREACH);
+        }
+    #else
+        printf("success! id:%d buf_len:%d, buf_data:%x\n",id,(int)buf->len,buf->data[0]);
+    #endif
+}
 
 /**
  * @brief 处理一个要发送的ip分片
@@ -111,6 +192,9 @@ void ip_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol) {
         ip_fragment_out(ip_buf,ip,protocol,ip_id,offset,1);
         offset += max_dataSize;
         buf_len -= max_dataSize;
+        #ifdef IP_SER
+            max_dataSize -= 128;   // 一次将分片长度减少128
+        #endif
     }
     ip_buf = (buf_t*) malloc (sizeof(buf_t));
     buf_init(ip_buf,buf_len);  
@@ -124,4 +208,5 @@ void ip_out(buf_t *buf, uint8_t *ip, net_protocol_t protocol) {
  */
 void ip_init() {
     net_add_protocol(NET_PROTOCOL_IP, ip_in);
+    map_init(&map_store_fragment,sizeof(uint16_t),sizeof(ipFragment_mess_t),0,0,NULL,NULL);
 }
