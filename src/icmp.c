@@ -3,8 +3,8 @@
 #include "ip.h"
 #include "net.h"
 
-map_t map_ping_req;
-map_t map_ping;
+map_t map_ping_req;  // 储存所有ping_req,(key,value) = (id,ping_req_t)
+map_t map_ping;      // 储存所有ping请求,(key,value) = (dst_ip,ping_t)
 
 /**
  * @brief 发送icmp响应

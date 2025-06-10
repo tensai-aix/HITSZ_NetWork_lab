@@ -27,12 +27,12 @@ typedef enum icmp_code {
 } icmp_code_t;
 
 typedef struct ping_req{             // 一次icmp请求报文的数据结构
-    dtime_t send_time;        // 发送时间
-    dtime_t receive_time;     // 接收时间
+    dtime_t send_time;               // 发送时间
+    dtime_t receive_time;            // 接收时间
     uint8_t dst_ip[NET_IP_LEN];      // 目的ip
     int length;                      // 数据长度
     uint8_t TTL;                     // TTL
-}ping_req_t;
+} ping_req_t;
 
 typedef struct ping{                 // ping请求的数据结构
     int ping_time;                   // ping_req的次数
@@ -45,7 +45,7 @@ typedef struct ping{                 // ping请求的数据结构
     int sum_time;                    // ping_req总时间
 
     int is_finished;                 // 是否完成了ping请求
-}ping_t;
+} ping_t;
 
 void icmp_in(buf_t *buf, uint8_t *src_ip);
 void icmp_unreachable(buf_t *recv_buf, uint8_t *src_ip, icmp_code_t code);

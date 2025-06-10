@@ -111,7 +111,7 @@ void arp_in(buf_t *buf, uint8_t *src_mac) {
             buf_list_t* store_buf_list = (buf_list_t*)map_get(&extend_arp_buf,arp->sender_ip);
             if(store_buf_list){
                 for(int i = 0;i < store_buf_list->buf_count;i++){
-                    ethernet_out(store_buf_list->buf[i],src_mac,NET_PROTOCOL_IP); // 注意发送的上层协议类型是ip协议
+                    ethernet_out(store_buf_list->buf[i],src_mac,NET_PROTOCOL_IP); 
                 }
                 map_delete(&extend_arp_buf,arp->sender_ip);
             }

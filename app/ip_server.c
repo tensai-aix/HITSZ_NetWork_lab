@@ -5,15 +5,15 @@
 #include "icmp.h"
 
 #define BUF_AMOUNT 4   // 要发送的数据包数量
-#define MAX_REC_BUF MAX_STORE_BUF  // 最大接收数据包数量
+#define MAX_REC_BUF MAX_STORE_BUF  // 最大接收数据包数量，16
 #define NET_PROTOCOL_TEST 253   // 实验用的虚拟protocol
 #define CEIL_DIV(a, b) (((a) + (b) - 1) / (b)) // 向上取整除法
 
 typedef struct buf_record{
-    buf_t buf;
-    dtime_t recv_time;
-    int i, j;
-    int valid;
+    buf_t buf;          // buf
+    dtime_t recv_time;  // 接收时间
+    int i, j;           // 发的第i个包的第j个分片
+    int valid;          // 是否有效
 } buf_record_t;
 
 // 发送包相关数据
